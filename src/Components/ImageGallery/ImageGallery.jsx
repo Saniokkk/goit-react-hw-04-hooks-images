@@ -17,8 +17,6 @@ export function ImageGallery(props) {
   const [button, setButton] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [tags, setTags] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
 
   useEffect(() => {
     setSearchValue(props.searchValue);
@@ -87,8 +85,6 @@ export function ImageGallery(props) {
 
   return (
     <>
-      {loading}
-      {error && <Loader>Упс...По вашему запросу ничего не найдено</Loader>}
       {!props.searchValue && <Loader>Введите что хочеться найти</Loader>}
       {showModal && (
         <Modal toggleModal={toggleModal}>
