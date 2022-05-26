@@ -73,7 +73,7 @@ export function ImageGallery(props) {
     }
   }, [searchValue, page]);
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = () => {
     setPage(page + 1);
   };
 
