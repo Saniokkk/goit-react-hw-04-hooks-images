@@ -1,4 +1,5 @@
-import { Component } from "react";
+import { useState, useEffect } from "react";
+import Notiflix from "notiflix";
 import PropTypes from "prop-types";
 import { ImageGalleryItem } from "./ImageGalleryItem";
 import { searchQuery } from "API/searchQuery";
@@ -8,125 +9,125 @@ import { Loader } from "../Loader";
 import style from "./ImageGallery.module.css";
 const PER_PAGE = 12;
 
-export class ImageGallery extends Component {
-  static propTypes = {
-    searchValue: PropTypes.string,
-  };
+export function ImageGallery(props) {
+  const [searchValue, setSearchValue] = useState("");
+  const [responseBySearch, setResponseBySearch] = useState(null);
+  const [largeImageURL, setLargeImageURL] = useState("");
+  const [page, setPage] = useState(1);
+  const [button, setButton] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [tags, setTags] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
-  state = {
-    searchValue: "",
-    responseBySearch: null,
-    page: 1,
-    button: false,
-    showModal: false,
-    largeImageURL: null,
-    tags: null,
-    status: "idle",
-  };
+  useEffect(() => {
+    setSearchValue(props.searchValue);
+    setPage(1);
+  }, [props.searchValue]);
 
-  async componentDidMount() {
-    console.log(this.state);
-  }
-
-  componentWillUnmount() {
-    this.setState({ page: 1 });
-  }
-
-  async componentDidUpdate(prevProps, prevState) {
-    if (prevProps.searchValue !== this.props.searchValue) {
-      this.setState({ status: "pending" });
-      const data = await searchQuery(
-        this.props.searchValue,
-        this.state.page,
-        PER_PAGE
-      );
-      if (data.total === 0) {
-        this.setState({ status: "reject" });
-      } else {
-        this.setState({
-          responseBySearch: [...data.hits],
-          searchValue: this.props.searchValue,
-          button: true,
-          page: 1,
-          status: "resolve",
+  useEffect(() => {
+    if (searchValue && page === 1) {
+      Notiflix.Loading.pulse();
+      searchQuery(searchValue, page, PER_PAGE)
+        .then((data) => {
+          if (data.total === 0) {
+            setResponseBySearch(null);
+            Notiflix.Notify.failure(
+              "Упс...По вашему запросу ничего не найдено"
+            );
+            setButton(false);
+            return;
+          } else {
+            setResponseBySearch([...data.hits]);
+            setButton(true);
+            window.scrollTo(0, 0);
+            return data;
+          }
+        })
+        .then((data) => {
+          Notiflix.Loading.remove();
+          Notiflix.Notify.success(
+            `Найденно: ${data.totalHits} Загруженно: ${data.hits.length}`
+          );
         });
-        window.scrollTo(0, 0);
-      }
-    }
+    } else if (page > 1) {
+      Notiflix.Loading.circle();
+      searchQuery(searchValue, page, PER_PAGE)
+        .then((data) => {
+          if (Math.ceil(data.totalHits / PER_PAGE) <= page) {
+            setButton(false);
+            setResponseBySearch([...responseBySearch, ...data.hits]);
+            Notiflix.Notify.failure("По вашему запросу картинок больше нет");
+            return;
+          }
+          setResponseBySearch([...responseBySearch, ...data.hits]);
 
-    if (
-      prevProps.searchValue === this.state.searchValue &&
-      prevState.page !== this.state.page
-    ) {
-      const data = await searchQuery(
-        this.props.searchValue,
-        this.state.page,
-        PER_PAGE
-      );
-
-      if (Math.ceil(data.totalHits / PER_PAGE) <= this.state.page) {
-        this.setState({
-          button: false,
-          responseBySearch: [...this.state.responseBySearch, ...data.hits],
+          return data;
+        })
+        .then((data) => {
+          Notiflix.Loading.remove();
+          Notiflix.Notify.success(
+            `Найденно: ${data.totalHits} Загруженно: ${
+              PER_PAGE + responseBySearch.length
+            }`
+          );
         });
-        return;
-      }
-      this.setState({
-        responseBySearch: [...this.state.responseBySearch, ...data.hits],
-        status: "resolve",
-      });
     }
-  }
+  }, [searchValue, page]);
 
-  handleLoadMore = async () => {
-    this.setState((prevState) => {
-      return { page: prevState.page + 1 };
-    });
+  const handleLoadMore = async () => {
+    setPage(page + 1);
   };
 
-  toggleModal = (largeImageURL, tags) => {
-    this.setState({ showModal: !this.state.showModal, largeImageURL, tags });
+  const toggleModal = (largeImageURL, tags) => {
+    setShowModal(!showModal);
+    setLargeImageURL(largeImageURL);
+    setTags(tags);
   };
 
-  render() {
-    const { showModal, largeImageURL, tags, responseBySearch, button, status } =
-      this.state;
-    if (status === "idle") {
-      return <Loader>Введите что хочеться найти</Loader>;
-    }
-    if (status === "pending") {
-      return <Loader>Загрузка данных...</Loader>;
-    }
-    if (status === "resolve") {
-      return (
-        <>
-          {showModal && (
-            <Modal toggleModal={this.toggleModal}>
-              {<img src={largeImageURL} alt={tags}></img>}
-            </Modal>
-          )}
-          <ul className={style.imageGallery}>
-            {responseBySearch &&
-              responseBySearch.map((data) => {
-                return (
-                  <ImageGalleryItem
-                    key={data.id}
-                    data={{ ...data }}
-                    openModal={this.toggleModal}
-                  />
-                );
-              })}
-          </ul>
-          {button ? (
-            <ButtonLoadMore text={"Load more"} onClick={this.handleLoadMore} />
-          ) : (
-            <div className={style.end}>Картинки закончились</div>
-          )}
-        </>
-      );
-    }
-    if (status === "reject") {
-      return <Loader>Упс...По вашему запросу ничего не найдено</Loader>;
-    }
-  }
+  return (
+    <>
+      {loading}
+      {error && <Loader>Упс...По вашему запросу ничего не найдено</Loader>}
+      {!props.searchValue && <Loader>Введите что хочеться найти</Loader>}
+      {showModal && (
+        <Modal toggleModal={toggleModal}>
+          {<img src={largeImageURL} alt={tags}></img>}
+        </Modal>
+      )}
+      {responseBySearch && (
+        <ul className={style.imageGallery}>
+          {responseBySearch.map((data) => {
+            return (
+              <ImageGalleryItem
+                key={data.id}
+                data={{ ...data }}
+                openModal={toggleModal}
+              />
+            );
+          })}
+        </ul>
+      )}
+      {button && <ButtonLoadMore text={"Load more"} onClick={handleLoadMore} />}
+    </>
+  );
 }
+
+ImageGallery.propTypes = {
+  searchValue: PropTypes.string,
+};
+
+Notiflix.Notify.init({
+  timeout: 3000,
+});
+Notiflix.Loading.init({
+  className: "notiflix-loading",
+  zindex: 4000,
+  backgroundColor: "rgba(0,0,0,0.8)",
+  rtl: false,
+  fontFamily: "Quicksand",
+  cssAnimation: true,
+  cssAnimationDuration: 600,
+  svgSize: "150px",
+  svgColor: "blue",
+});
